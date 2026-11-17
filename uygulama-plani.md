@@ -129,15 +129,18 @@ Form, ekran görüntüsündeki alanları birebir içerir: Maç tarihi (GG.AA.YYY
 - Tema: koyu→açık tüm ekranlarda (kimlik ekranları dahil) okunaklı.
 - Üretim: kendi e-postanızla kayıt → admin yapın → bir ücreti değiştirin → yeni maçta güncel fiyatın yansıdığını görün; eski maçta kopyanın değişmediğini görün.
 
-## Fazlar (sırayla; her faz kendi kendine build edilir)
+## Paketleme: 5 eşit parça (güncel bölüm — 2026-11-18)
 
-1. İskelet + tema (koyu/açık CSS değişkenleri) + Auth + koruma + sidebar (₺0)
-2. Supabase şema/seed + RPC + RLS; ücret mantığı (lib/rates.ts, saf fonksiyonlar)
-3. Maç Ekle (ekle/düzenle) + Ana Sayfa kartları
-4. Aylık Tablo + PDF (print CSS) + Excel
-5. İstatistikler (Recharts bar + donut)
-6. Ayarlar (tema/sezon/şifre) + Admin (ücret tablosu/yol kademesi/sezon ekleme)
-7. Cila + responsive (tablet/mobil; kenar menüsü dar ekranda hamburger/alt bar) + Vercel/Supabase kurulum rehberi
+> Bu bölüm, dosyanın ilerisindeki eski "Fazlar" listesini geçersiz kılar; 5 eşit parçaya bölünmüş güncel yapım sırasında izlenecek sırayı gösterir.
+- **Aşama 1 — Temel + Giriş/Kayıt:** Vite+React+TS+Tailwind iskeleti, koyu/açık tema altyapısı, Supabase istemcisi, Auth (kayıt: kullanıcı adı+e-posta+şifre, e-posta doğrulama AÇIK; giriş: tek kutuya kullanıcı adı VEYA e-posta + RPC `get_email_by_username`), uygulama kabuğu (sidebar + korumalı rotalar), Giriş/Kayıt/Şifre sıfırlama ekranları. **Durum: tamamlandı, derleme temiz (paket 1/5).**
+- **Aşama 2 — Supabase şema + RLS + RPC + tohum veri + ücret mantığı:** `supabase/schema.sql` (5 tablo + RLS + RPC + tetikleyici), `supabase/seed.sql` (2026-2027, 25 kategori + 6 yol kademesi, legacy girdiler hariç), `src/lib/rates.ts` (harcırah ev %25 / deplasman %50 / "2. maç"ta 0; toplam; tr kuruş yuvarlama). **Durum: tamamlandı; vitest 11/11 yeşil.**
+- **Aşama 3 — Maç Ekle + Ana Sayfa:** ekle/düzenle ortak form, canlı toplam önizleme, `src/lib/matches.ts` veri katmanı, Ana Sayfa özet kartları + "En çok çıktığınız kategoride maçlar" tablosu; kenar çubuğunda genel toplam. **Durum: tamamlandı, derleme temiz.**
+- **Aşama 4 — Aylık Tablo + PDF/Excel:** ay kartları, açılan tablo (Düzenle/Sil + AYLIK TOPLAM satırı), `@media print` ile PDF çıktısı, SheetJS ile gerçek .xlsx indir; genel toplam çipi. **Durum: bekliyor.**
+- **Aşama 5 — İstatistikler + Ayarlar + Admin + Yayın rehberi:** Recharts bar + halka grafik (boş durumlarıyla), Ayarlar (koyu/açık tema, sezon seçimi, şifre/çıkış), Admin (ücret tablosu + yol kademesi + sezon kopyalama, yalnız is_admin) ve sonunda Vercel/Supabase yayın adımları. **Durum: bekliyor.**
+
+**Doğrulama notu (güncel):** Uçtan uca "kayıt → e-postayı doğrula → maç ekle → ay toplamı" akışı henüz çalıştırılmadı, çünkü `.env` (Supabase URL + anon key) bu makinede doldurulmadı; giriş/kayıt ekranları ve tüm sayfalar ancak canlı Supabase projesiyle gerçek veriyle test edilebilir. Aşamalar şu an **derleme + birim testleriyle** doğrulanıyor; yayın adımında uçtan uca kontrol yapılacak.
+
+Bu dosya: 2026-11-17 · `rates.json` 2026-2027 ücret listesi (kaynak) · bölüm eklendi 2026-11-18.
 
 ## Yapıcı kararlarım (hepsi ayrı ayrı veto edilebilir)
 

@@ -1,8 +1,10 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import AppShell from './components/AppShell';
 import RequireAuth from './components/RequireAuth';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { readMatches } from './lib/matches';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
@@ -15,9 +17,13 @@ import SettingsPage from './pages/SettingsPage';
 import AdminPage from './pages/AdminPage';
 
 function Korumali({ children }: { children: React.ReactNode }) {
+  const [toplam, setToplam] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    readMatches().then(({ data }) => setToplam(data.reduce((a, m) => a + m.total, 0)));
+  }, []);
   return (
     <RequireAuth>
-      <AppShell>{children}</AppShell>
+      <AppShell toplam={toplam}>{children}</AppShell>
     </RequireAuth>
   );
 }
