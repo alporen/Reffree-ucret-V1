@@ -142,8 +142,17 @@ body {
   color: var(--green);
 }
 
+@page { size: A4; margin: 12mm; }
+
 @media print {
-  body { background: #fff; color: #000; }
+  html, body, #root { height: auto; }
+  body { background: #fff !important; color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .no-print, .sidebar { display: none !important; }
-  .panel { box-shadow: none; border: 1px solid #ddd; }
+  .print-only { display: block !important; }
+  .panel { box-shadow: none !important; border: none; background: #fff !important; }
+  main { padding: 0 !important; overflow: visible !important; }
+  table { font-size: 11px; width: 100%; border-collapse: collapse; }
+  th, td { border-bottom: 1px solid #ddd; padding: 6px 8px !important; }
+  thead { display: table-header-group; }
+  .overflow-x-auto { overflow: visible !important; }
 }
