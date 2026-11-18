@@ -40,7 +40,7 @@ create table if not exists public.travel_bands (
 
 create table if not exists public.matches (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.profiles(id) on delete cascade,
+  user_id uuid not null default auth.uid() references public.profiles(id) on delete cascade,
   season_id int not null references public.seasons(id),
   match_date date not null,
   category_id int not null references public.fee_categories(id),

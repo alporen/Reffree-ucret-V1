@@ -47,7 +47,9 @@ export default function MonthlyPage() {
   }
 
   async function exportExcel() {
-    if (!secili) return;
+    try {
+	if (!secili) return;
+    setHata(null);
     const { month, year } = secili;
     const matchesNow = secili.matches;
     const totalNow = secili.total;
@@ -82,6 +84,9 @@ export default function MonthlyPage() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, label);
     XLSX.writeFile(wb, `${year}-${String(month).padStart(2, '0')}-aylik-tablo.xlsx`);
+    } catch (err) {
+      setHata('Excel oluşturulamadı: ' + (err instanceof Error ? err.message : String(err)));
+    }
   }
 
   function yazdir() {

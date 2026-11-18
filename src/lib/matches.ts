@@ -73,7 +73,9 @@ export async function readMatches(seasonId?: number): Promise<{ data: MatchRow[]
 }
 
 export async function insertMatch(input: MatchInput) {
-  const { error } = await supabase.from('matches').insert(input);
+  const { data: userData, error: authError } = await supabase.auth.getUser();
+  if (authError || !userData.user) return { error: authError?.message ?? 'Oturum bulunamadı. Tekrar giriş yapın.' };
+  const { error } = await supabase.from('matches').insert({ ...input, user_id: userData.user.id });
   return { error: error ? error.message : null };
 }
 
