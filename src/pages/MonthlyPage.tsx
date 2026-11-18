@@ -200,7 +200,9 @@ export default function MonthlyPage() {
               exit={modalPanel.exit}
               transition={modalPanel.transition}
             >
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] p-5">
+              {/* Kapat — her boyutta panelin sağ üst köşesinde sabit */}
+              <button onClick={() => setAcikAy(null)} aria-label="Kapat" className="no-print absolute right-3 top-3 z-10 rounded-lg border border-[var(--border-2)] bg-[var(--panel)] p-2 hover:border-[var(--muted-2)]"><X size={16} /></button>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] p-5 pr-14">
                 <div>
                   <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--green)]">AYLIK MAÇ TABLOSU</div>
                   <h2 className="mt-1 text-2xl font-bold">{secili.year} {monthName(secili.month - 1)}</h2>
@@ -209,7 +211,6 @@ export default function MonthlyPage() {
                 <div className="no-print flex items-center gap-2">
                   <button onClick={yazdir} className="btn-ghost flex items-center gap-2 text-xs"><Printer size={16} /> PDF olarak kaydet</button>
                   <button onClick={exportExcel} className="btn-ghost flex items-center gap-2 text-xs"><FileSpreadsheet size={16} /> Excel indir</button>
-                  <button onClick={() => setAcikAy(null)} aria-label="Kapat" className="rounded-lg border border-[var(--border-2)] p-2 hover:border-[var(--muted-2)]"><X size={16} /></button>
                 </div>
               </div>
 
@@ -220,15 +221,15 @@ export default function MonthlyPage() {
                   </thead>
                   <tbody>
                     {secili.matches.map((m) => (
-                      <tr key={m.id} className="border-t border-[var(--border)] align-middle">
-                        <td className="px-5 py-3 font-semibold">{new Date(m.match_date + 'T00:00:00').toLocaleDateString('tr-TR')}</td>
-                        <td className="px-5 py-3">{m.category_label}</td>
-                        <td className="px-5 py-3"><span className="rounded-full border border-[var(--green)] bg-[var(--green-soft)] px-2 py-0.5 text-[10px] font-bold uppercase text-[var(--green)]">{ROLE_LABELS[m.role]}</span></td>
-                        <td className="px-5 py-3">{tl(m.match_fee)}</td>
-                        <td className="px-5 py-3">{tl(m.travel_fee)}</td>
-                        <td className="px-5 py-3">{tl(m.harcirah)}</td>
-                        <td className="px-5 py-3 font-semibold">{tl(m.total)}</td>
-                        <td className="no-print px-5 py-3">
+                      <tr key={m.id} className="border-t border-[var(--border)]">
+                        <td className="px-5 py-3 align-middle font-semibold">{new Date(m.match_date + 'T00:00:00').toLocaleDateString('tr-TR')}</td>
+                        <td className="px-5 py-3 align-middle">{m.category_label}</td>
+                        <td className="px-5 py-3 align-middle"><span className="inline-flex items-center whitespace-nowrap rounded-full border border-[var(--green)] bg-[var(--green-soft)] px-2 py-0.5 text-[10px] font-bold uppercase text-[var(--green)]">{ROLE_LABELS[m.role]}</span></td>
+                        <td className="px-5 py-3 align-middle">{tl(m.match_fee)}</td>
+                        <td className="px-5 py-3 align-middle">{tl(m.travel_fee)}</td>
+                        <td className="px-5 py-3 align-middle">{tl(m.harcirah)}</td>
+                        <td className="px-5 py-3 align-middle font-semibold">{tl(m.total)}</td>
+                        <td className="no-print px-5 py-3 align-middle">
                           <div className="flex gap-2">
                             <button onClick={() => navigate('/mac-ekle?id=' + m.id)} className="flex items-center gap-1 rounded-lg border border-[var(--border-2)] px-2 py-1 text-xs text-[var(--blue)] hover:border-[var(--blue)]"><Pencil size={12} /> Düzenle</button>
                             {silmeOnayId === m.id ? (
