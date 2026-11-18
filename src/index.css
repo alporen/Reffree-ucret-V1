@@ -144,15 +144,38 @@ body {
 
 @page { size: A4; margin: 12mm; }
 
+.modal-panel table { font-variant-numeric: tabular-nums; }
+
 @media print {
-  html, body, #root { height: auto; }
+  html, body, #root { height: auto !important; }
   body { background: #fff !important; color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* App shell clips with h-screen/overflow-hidden; unwrap for print */
+  #root > div, #root > div > div { height: auto !important; overflow: visible !important; }
+  main { padding: 0 !important; overflow: visible !important; }
   .no-print, .sidebar { display: none !important; }
   .print-only { display: block !important; }
   .panel { box-shadow: none !important; border: none; background: #fff !important; }
-  main { padding: 0 !important; overflow: visible !important; }
+  /* Modal: keep the table, drop the overlay/chrome; lay it out flat */
+  .modal-overlay {
+    position: static !important;
+    display: block !important;
+    padding: 0 !important;
+    z-index: auto !important;
+  }
+  .modal-overlay > button { display: none !important; } /* backdrop */
+  .modal-panel {
+    position: static !important;
+    max-height: none !important;
+    overflow: visible !important;
+    width: 100% !important;
+    max-width: none !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+  .modal-panel .sticky { position: static !important; }
+  .modal-panel .overflow-auto { overflow: visible !important; }
+  .overflow-x-auto { overflow: visible !important; }
   table { font-size: 11px; width: 100%; border-collapse: collapse; }
   th, td { border-bottom: 1px solid #ddd; padding: 6px 8px !important; }
   thead { display: table-header-group; }
-  .overflow-x-auto { overflow: visible !important; }
 }

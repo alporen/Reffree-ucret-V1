@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from 'sonner';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, PlusCircle, Save } from 'lucide-react';
 import {
@@ -18,6 +21,7 @@ import {
   readTravelBands,
   updateMatch,
 } from '../lib/matches';
+import { matchSchema, type MatchFormValues } from '../lib/schemas';
 import { tl } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 
@@ -37,122 +41,141 @@ export default function AddMatchPage() {
   const editId = searchParams.get('id');
 
   const [seasons, setSeasons] = useState<{ id: number; label: string }[]>([]);
-  const [seasonId, setSeasonId] = useState<number | null>(null);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [bands, setBands] = useState<BandRow[]>([]);
-
-  const [matchDate, setMatchDate] = useState(todayIso());
-  const [categoryId, setCategoryId] = useState<number | null>(null);
-  const [role, setRole] = useState<Role>('referee');
-  const [venue, setVenue] = useState<Venue>('home');
-  const [secondSameDay, setSecondSameDay] = useState(false);
-  const [bandId, setBandId] = useState<number | null>(null); // null → yol ücreti yok
-  const [travelFee, setTravelFee] = useState('0');
-  const [harcirah, setHarcirah] = useState('0');
-  const [hata, setHata] = useState<string | null>(null);
-  const [kaydediliyor, setKaydediliyor] = useState(false);
   const [yukleniyor, setYukleniyor] = useState(true);
   const [veriHata, setVeriHata] = useState<string | null>(null);
 
-  // Sezonları yükle
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    setValue,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<MatchFormValues>({
+    resolver: zodResolver(matchSchema),
+    defaultValues: {
+      match_date: todayIso(),
+      category_id: '',
+      season_id: '',
+      role: 'referee',
+      venue: 'home',
+      second_same_day: false,
+      travel_band_id: '',
+      travel_fee: '0',
+      harcirah: '0',
+    },
+  });
+
+  const watched = watch();
+  const secondSameDay = watched.second_same_day;
+  const venue = watched.venue as Venue;
+  const role = watched.role as Role;
+  const travelBandId = watched.travel_band_id;
+  const categoryId = Number(watched.category_id) || null;
+  const selectedCategory = useMemo(
+    () => categories.find((c) => c.id === categoryId) ?? categories[0] ?? null,
+    [categories, categoryId],
+  );
+  const selectedBand = useMemo(() => bands.find((b) => b.id === Number(travelBandId)) ?? null, [bands, travelBandId]);
+
+  // Veri yükleme
   useEffect(() => {
     readSeasons().then(({ data, error }) => {
-      if (error) {
-        setVeriHata(error);
-        setYukleniyor(false);
-        return;
-      }
+      if (error) { setVeriHata(error); setYukleniyor(false); return; }
       setSeasons(data);
-      setSeasonId(data[0]?.id ?? null);
+      if (data[0] && !editId) setValue('season_id', String(data[0].id));
     });
-  }, []);
+  }, [editId, setValue]);
 
-  // Seçili sezonda kategorileri ve kademeleri yükle
   useEffect(() => {
-    if (seasonId == null) return;
+    const sid = Number(watched.season_id) || seasons[0]?.id;
+    if (!sid) return;
     setYukleniyor(true);
-    Promise.all([readCategories(seasonId), readTravelBands(seasonId)]).then(([c, b]) => {
+    Promise.all([readCategories(sid), readTravelBands(sid)]).then(([c, b]) => {
       if (c.error || b.error) setVeriHata(c.error ?? b.error ?? null);
       setCategories(c.data as CategoryRow[]);
       setBands(b.data as BandRow[]);
+      if (!editId && c.data[0]) setValue('category_id', String((c.data[0] as CategoryRow).id));
       setYukleniyor(false);
     });
-  }, [seasonId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watched.season_id, seasons.length, editId, setValue]);
 
-  // Düzenleme modunda mevcut kaydı yükle
+  // Düzenleme modu
   useEffect(() => {
     if (!editId) return;
     readMatches().then(({ data }) => {
       const m = data.find((x) => x.id === editId);
       if (!m) return;
-      setMatchDate(m.match_date);
-      setCategoryId(m.category_id);
-      setRole(m.role);
-      setVenue(m.venue);
-      setSecondSameDay(m.second_same_day);
-      setBandId(m.travel_band_id);
-      setTravelFee(String(m.travel_fee));
-      setHarcirah(String(m.harcirah));
+      reset({
+        match_date: m.match_date,
+        category_id: String(m.category_id),
+        season_id: String(m.season_id),
+        role: m.role,
+        venue: m.venue,
+        second_same_day: m.second_same_day,
+        travel_band_id: m.travel_band_id == null ? '' : String(m.travel_band_id),
+        travel_fee: String(m.travel_fee),
+        harcirah: String(m.harcirah),
+      });
     });
-  }, [editId]);
+  }, [editId, reset]);
 
-  const selectedCategory = useMemo(
-    () => categories.find((c) => c.id === categoryId) ?? categories[0] ?? null,
-    [categories, categoryId],
-  );
-  const effectiveCategoryId = categoryId ?? selectedCategory?.id ?? null;
-  const selectedBand = useMemo(() => bands.find((b) => b.id === bandId) ?? null, [bands, bandId]);
-
-  // Yol kademesi seçilince ücreti doldur (kullanıcı elle değiştirmişse ezmez)
+  // Yol kademesi seçilince ücreti doldur
   useEffect(() => {
-    setTravelFee(String(resolveTravelFee(selectedBand)));
+    setValue('travel_fee', String(resolveTravelFee(selectedBand)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bandId]);
+  }, [travelBandId]);
 
-  // 2. maç işaretliyse yol ve harcırah 0'lanır
+  // Harcırahı otomatik hesapla (düzenlenebilir)
   const base = selectedCategory ? matchFeeFor(selectedCategory, role) : 0;
   const otomatikHarcirah = secondSameDay ? 0 : venue === 'home' ? base * 0.25 : base * 0.5;
   useEffect(() => {
-    setHarcirah(String(Math.round(otomatikHarcirah * 100) / 100));
+    setValue('harcirah', String(Math.round(otomatikHarcirah * 100) / 100));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [otomatikHarcirah]);
 
   const totals = selectedCategory
-    ? computeMatchTotals(
-        selectedCategory,
-        role,
-        venue,
-        Number(travelFee) || 0,
-        secondSameDay,
-      )
+    ? computeMatchTotals(selectedCategory, role, venue, Number(watched.travel_fee) || 0, secondSameDay)
     : null;
-  // Harcırah kullanıcı tarafından elle değiştirilebilir; canlı toplam onu izler
-  const gosterilecekToplam = (totals?.matchFee ?? 0) + (Number(harcirah) || 0) + (secondSameDay ? 0 : (Number(travelFee) || 0));
+  const gosterilecekToplam =
+    (totals?.matchFee ?? 0) + (Number(watched.harcirah) || 0) + (secondSameDay ? 0 : Number(watched.travel_fee) || 0);
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    setHata(null);
-    if (!selectedCategory || seasonId == null || effectiveCategoryId == null) {
-      setHata('Maç türü ve sezon gerekli.');
-      return;
-    }
-    const payload = {
-      match_date: matchDate,
-      category_id: effectiveCategoryId,
-      season_id: seasonId,
-      role,
-      venue,
-      second_same_day: secondSameDay,
-      travel_band_id: bandId,
-      travel_fee: secondSameDay ? 0 : Number(travelFee) || 0,
-      harcirah: Number(harcirah) || 0,
-      match_fee: matchFeeFor(selectedCategory, role),
-    };
-    setKaydediliyor(true);
-    const { error } = editId ? await updateMatch(editId, payload) : await insertMatch(payload);
-    setKaydediliyor(false);
-    if (error) return setHata(error);
-    navigate('/aylik-tablo');
-  }
+  const onSubmit = handleSubmit(
+    async (values) => {
+      if (!selectedCategory) {
+        toast.error('Maç türü gerekli.');
+        return;
+      }
+      const payload = {
+        match_date: values.match_date,
+        category_id: Number(values.category_id),
+        season_id: Number(values.season_id),
+        role: values.role,
+        venue: values.venue,
+        second_same_day: values.second_same_day,
+        travel_band_id: values.travel_band_id ? Number(values.travel_band_id) : null,
+        travel_fee: values.second_same_day ? 0 : Number(values.travel_fee) || 0,
+        harcirah: Number(values.harcirah) || 0,
+        match_fee: matchFeeFor(selectedCategory, values.role),
+      };
+      const { error } = editId ? await updateMatch(editId, payload) : await insertMatch(payload);
+      if (error) {
+        toast.error(error);
+        return;
+      }
+      toast.success(editId ? 'Maç güncellendi' : 'Maç eklendi');
+      navigate('/aylik-tablo');
+    },
+    (formErrors) => {
+      // Doğrulama başarısız: kullanıcıya göster, ayrıntıyı konsola bırak
+      console.error('Maç formu doğrulama hatası:', formErrors);
+      toast.error('Form eksik veya hatalı — işaretli alanları kontrol edin.');
+    },
+  );
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -169,32 +192,34 @@ export default function AddMatchPage() {
         {profile?.username && <div className="chip">@{profile.username}</div>}
       </div>
 
-      {veriHata && (
-        <div className="panel mb-6 border-[var(--gold)] p-4 text-sm text-[var(--gold)]">{veriHata}</div>
-      )}
+      {veriHata && <div className="panel mb-6 border-[var(--gold)] p-4 text-sm text-[var(--gold)]">{veriHata}</div>}
 
       <form onSubmit={onSubmit} className="panel p-6">
         <div className="grid gap-4 md:grid-cols-4">
           <div>
             <label htmlFor="tarih" className="label">Maç tarihi</label>
-            <input id="tarih" type="date" className="input" value={matchDate} onChange={(e) => setMatchDate(e.target.value)} required />
+            <input id="tarih" type="date" className="input" {...register('match_date')} />
+            {errors.match_date && <p className="mt-1 text-[11px] text-[var(--red)]">{errors.match_date.message}</p>}
           </div>
           <div>
             <label htmlFor="tur" className="label">Maç türü</label>
-            <select id="tur" className="input" value={effectiveCategoryId ?? ''} onChange={(e) => setCategoryId(Number(e.target.value))} required>
+            <select id="tur" className="input" {...register('category_id')}>
               {yukleniyor && <option>Yükleniyor…</option>}
               {categories.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
             </select>
+            {errors.category_id && <p className="mt-1 text-[11px] text-[var(--red)]">{errors.category_id.message}</p>}
           </div>
           <div>
             <label htmlFor="gorev" className="label">Görev</label>
-            <select id="gorev" className="input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
+            <select id="gorev" className="input" {...register('role')}>
               {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </div>
           <div className="flex flex-col justify-end">
             <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-[var(--gold)] bg-[color:rgba(224,169,67,0.08)] px-3 py-3 text-sm text-[var(--gold)]">
-              <input type="checkbox" checked={secondSameDay} onChange={(e) => setSecondSameDay(e.target.checked)} />
+              <Controller name="second_same_day" control={control} render={({ field }) => (
+                <input type="checkbox" checked={field.value} onChange={(e) => field.onChange(e.target.checked)} />
+              )} />
               <span>
                 <span className="block font-semibold">Aynı gün ve aynı yerde</span>
                 <span className="block text-xs opacity-80">2. maç (yol ve harcırah 0 TL)</span>
@@ -204,44 +229,47 @@ export default function AddMatchPage() {
 
           <div className="md:col-span-2">
             <label htmlFor="yer" className="label">Görev yeri / harcırah</label>
-            <select id="yer" className="input" value={venue} onChange={(e) => setVenue(e.target.value as Venue)}>
+            <select id="yer" className="input" {...register('venue')}>
               <option value="home">{VENUE_LABELS.home}</option>
               <option value="away">{VENUE_LABELS.away}</option>
             </select>
           </div>
           <div>
             <label htmlFor="yolmesafe" className="label">Yol mesafesi</label>
-            <select id="yolmesafe" className="input" value={bandId ?? 'yok'} onChange={(e) => setBandId(e.target.value === 'yok' ? null : Number(e.target.value))} disabled={secondSameDay}>
-              <option value="yok">Yol ücreti yok</option>
-              {bands.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
-            </select>
+            <Controller name="travel_band_id" control={control} render={({ field }) => (
+              <select id="yolmesafe" className="input" value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value)} disabled={secondSameDay}>
+                <option value="">Yol ücreti yok</option>
+                {bands.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
+              </select>
+            )} />
           </div>
           <div>
             <label htmlFor="yol" className="label">Yol ücreti (TL)</label>
-            <input id="yol" type="number" step="0.01" min={0} className="input" value={travelFee} onChange={(e) => setTravelFee(e.target.value)} disabled={secondSameDay} />
+            <input id="yol" type="number" step="0.01" min={0} className="input" disabled={secondSameDay} {...register('travel_fee')} />
+            {errors.travel_fee && <p className="mt-1 text-[11px] text-[var(--red)]">{errors.travel_fee.message}</p>}
             <p className="mt-1 text-[11px] text-[var(--muted-2)]">Kilometre aralığı seçildiğinde ücret gelir; tutarı değiştirebilirsiniz.</p>
           </div>
           <div>
             <label htmlFor="harcirah" className="label">Harcırah (TL)</label>
-            <input id="harcirah" type="number" step="0.01" min={0} className="input" value={harcirah} onChange={(e) => setHarcirah(e.target.value)} disabled={secondSameDay} />
+            <input id="harcirah" type="number" step="0.01" min={0} className="input" disabled={secondSameDay} {...register('harcirah')} />
+            {errors.harcirah && <p className="mt-1 text-[11px] text-[var(--red)]">{errors.harcirah.message}</p>}
             <p className="mt-1 text-[11px] text-[var(--muted-2)]">Maç ücretine göre hesaplanır; tutarı değiştirebilirsiniz.</p>
           </div>
           {seasons.length > 1 && (
             <div>
               <label htmlFor="sezon" className="label">Sezon</label>
-              <select id="sezon" className="input" value={seasonId ?? ''} onChange={(e) => setSeasonId(Number(e.target.value))}>
+              <select id="sezon" className="input" {...register('season_id')}>
                 {seasons.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
             </div>
           )}
         </div>
 
-        {/* Canlı toplam önizleme */}
         <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--border)] sm:grid-cols-4">
           {[
             { label: 'Maç ücreti', value: tl(totals?.matchFee ?? 0) },
-            { label: 'Yol ücreti', value: tl(secondSameDay ? 0 : Number(travelFee) || 0) },
-            { label: 'Harcırah', value: tl(Number(harcirah) || 0) },
+            { label: 'Yol ücreti', value: tl(secondSameDay ? 0 : Number(watched.travel_fee) || 0) },
+            { label: 'Harcırah', value: tl(Number(watched.harcirah) || 0) },
             { label: 'Bu maçın toplamı', value: tl(gosterilecekToplam), accent: true },
           ].map((cell) => (
             <div key={cell.label} className="bg-[var(--panel-2)] p-4">
@@ -251,11 +279,15 @@ export default function AddMatchPage() {
           ))}
         </div>
 
-        {hata && <div className="mt-4 rounded-lg border border-[var(--red)] bg-[color:rgba(255,107,94,0.08)] p-3 text-xs text-[var(--red)]">{hata}</div>}
+        {Object.keys(errors).length > 0 && (
+          <div className="panel mt-6 border-[var(--red)] p-4 text-xs text-[var(--red)]">
+            Gönderilemedi — kırmızı alanları kontrol edin: {Object.values(errors).map((e) => e?.message).filter(Boolean).join(' · ')}
+          </div>
+        )}
 
-        <button type="submit" className="btn-primary mt-6 flex items-center gap-2" disabled={kaydediliyor || yukleniyor}>
+        <button type="submit" className="btn-primary mt-6 flex items-center gap-2" disabled={isSubmitting || yukleniyor}>
           {editId ? <Save size={18} /> : <PlusCircle size={18} />}
-          {kaydediliyor ? 'Kaydediliyor…' : editId ? 'Değişiklikleri kaydet' : 'Maçı ekle'}
+          {isSubmitting ? 'Kaydediliyor…' : editId ? 'Değişiklikleri kaydet' : 'Maçı ekle'}
         </button>
       </form>
     </div>

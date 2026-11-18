@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronRight, Printer, FileSpreadsheet, Pencil, Trash2, X, CalendarRange } from 'lucide-react';
 import { readMatches, deleteMatch, groupMatchesByMonth } from '../lib/matches';
 import { monthName, tl } from '../lib/format';
 import { ROLE_LABELS } from '../lib/rates';
 import { useAuth } from '../context/AuthContext';
+import { modalOverlay, modalPanel } from '../lib/motion';
 import type { MatchRow } from '../lib/types';
 
 export default function MonthlyPage() {
@@ -35,6 +37,22 @@ export default function MonthlyPage() {
   const genelToplam = useMemo(() => matches.reduce((a, m) => a + m.total, 0), [matches]);
 
   const secili = acikAy ? ayliklar.find((a) => a.key === acikAy) ?? null : null;
+  const modalAcik = Boolean(session && secili);
+
+  // Escape ile kapat + arka plan kaydırmayı kilitle
+  useEffect(() => {
+    if (!modalAcik) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAcikAy(null);
+    };
+    document.addEventListener('keydown', onKey);
+    const onceki = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = onceki;
+    };
+  }, [modalAcik]);
 
   async function onDelete(id: string) {
     setSiliniyorId(id);
@@ -48,42 +66,42 @@ export default function MonthlyPage() {
 
   async function exportExcel() {
     try {
-	if (!secili) return;
-    setHata(null);
-    const { month, year } = secili;
-    const matchesNow = secili.matches;
-    const totalNow = secili.total;
-    const label = `${monthName(month - 1)} ${year}`;
-    const XLSX = await import('xlsx');
-    const rows = matchesNow.map((m) => ({
-      Tarih: new Date(m.match_date + 'T00:00:00').toLocaleDateString('tr-TR'),
-      'Maç türü': m.category_label,
-      Görev: ROLE_LABELS[m.role],
-      'Maç ücreti': m.match_fee,
-      Yol: m.travel_fee,
-      Harcırah: m.harcirah,
-      Toplam: m.total,
-    }));
-    rows.push({ Tarih: '', 'Maç türü': '', Görev: 'AYLIK TOPLAM', 'Maç ücreti': matchesNow.reduce((a, m) => a + m.match_fee, 0), Yol: matchesNow.reduce((a, m) => a + m.travel_fee, 0), Harcırah: matchesNow.reduce((a, m) => a + m.harcirah, 0), Toplam: totalNow });
-    const ws = XLSX.utils.json_to_sheet(rows);
-    // sütun genişlikleri
-    ws['!cols'] = [{ wch: 12 }, { wch: 22 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }];
-    const paraAdi = ['Maç ücreti', 'Yol', 'Harcırah', 'Toplam'];
-    const header = XLSX.utils.sheet_to_json(ws, { header: 1 }) as string[][];
-    const colIndex: Record<string, number> = {};
-    header[0]?.forEach((h, i) => { colIndex[String(h)] = i; });
-    const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1');
-    for (let r = 1; r <= range.e.r; r++) {
-      for (const name of paraAdi) {
-        const idx = colIndex[name];
-        if (idx == null) continue;
-        const cell = ws[XLSX.utils.encode_cell({ r, c: idx })];
-        if (cell && typeof cell.v === 'number') cell.z = '#,##0.00" ₺"';
+      if (!secili) return;
+      setHata(null);
+      const { month, year } = secili;
+      const matchesNow = secili.matches;
+      const totalNow = secili.total;
+      const label = `${monthName(month - 1)} ${year}`;
+      const XLSX = await import('xlsx');
+      const rows = matchesNow.map((m) => ({
+        Tarih: new Date(m.match_date + 'T00:00:00').toLocaleDateString('tr-TR'),
+        'Maç türü': m.category_label,
+        Görev: ROLE_LABELS[m.role],
+        'Maç ücreti': m.match_fee,
+        Yol: m.travel_fee,
+        Harcırah: m.harcirah,
+        Toplam: m.total,
+      }));
+      rows.push({ Tarih: '', 'Maç türü': '', Görev: 'AYLIK TOPLAM', 'Maç ücreti': matchesNow.reduce((a, m) => a + m.match_fee, 0), Yol: matchesNow.reduce((a, m) => a + m.travel_fee, 0), Harcırah: matchesNow.reduce((a, m) => a + m.harcirah, 0), Toplam: totalNow });
+      const ws = XLSX.utils.json_to_sheet(rows);
+      // sütun genişlikleri
+      ws['!cols'] = [{ wch: 12 }, { wch: 22 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }];
+      const paraAdi = ['Maç ücreti', 'Yol', 'Harcırah', 'Toplam'];
+      const header = XLSX.utils.sheet_to_json(ws, { header: 1 }) as string[][];
+      const colIndex: Record<string, number> = {};
+      header[0]?.forEach((h, i) => { colIndex[String(h)] = i; });
+      const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1');
+      for (let r = 1; r <= range.e.r; r++) {
+        for (const name of paraAdi) {
+          const idx = colIndex[name];
+          if (idx == null) continue;
+          const cell = ws[XLSX.utils.encode_cell({ r, c: idx })];
+          if (cell && typeof cell.v === 'number') cell.z = '#,##0.00" ₺"';
+        }
       }
-    }
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, label);
-    XLSX.writeFile(wb, `${year}-${String(month).padStart(2, '0')}-aylik-tablo.xlsx`);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, label);
+      XLSX.writeFile(wb, `${year}-${String(month).padStart(2, '0')}-aylik-tablo.xlsx`);
     } catch (err) {
       setHata('Excel oluşturulamadı: ' + (err instanceof Error ? err.message : String(err)));
     }
@@ -124,7 +142,7 @@ export default function MonthlyPage() {
       )}
 
       {/* Ay kartları */}
-      {session && !secili && (
+      {session && (
         <section className="mt-6">
           <h2 className="font-semibold">Aylık Tablo</h2>
           <p className="text-xs text-[var(--muted)]">Ay kartına tıklayarak maç tablosunu açın.</p>
@@ -155,66 +173,92 @@ export default function MonthlyPage() {
         </section>
       )}
 
-      {/* Seçilen ayın tablosu */}
-      {session && secili && (
-        <section className="mt-6 panel overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] p-5">
-            <div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--green)]">AYLIK MAÇ TABLOSU</div>
-              <h2 className="mt-1 text-2xl font-bold">{secili.year} {monthName(secili.month - 1)}</h2>
-              <p className="text-xs text-[var(--muted)]">{secili.count} maç · Aylık toplam {tl(secili.total)}</p>
-            </div>
-            <div className="no-print flex items-center gap-2">
-              <button onClick={yazdir} className="btn-ghost flex items-center gap-2 text-xs"><Printer size={16} /> PDF olarak kaydet</button>
-              <button onClick={exportExcel} className="btn-ghost flex items-center gap-2 text-xs"><FileSpreadsheet size={16} /> Excel indir</button>
-              <button onClick={() => setAcikAy(null)} aria-label="Kapat" className="rounded-lg border border-[var(--border-2)] p-2 hover:border-[var(--muted-2)]"><X size={16} /></button>
-            </div>
-          </div>
+      {/* Seçilen ayın tablosu — ortada modal */}
+      <AnimatePresence>
+        {modalAcik && secili && (
+          <motion.div
+            key="aylik-modal-overlay"
+            className="modal-overlay fixed inset-0 z-40 flex items-center justify-center p-4 sm:p-6 md:p-8"
+            initial={modalOverlay.initial}
+            animate={modalOverlay.animate}
+            exit={modalOverlay.exit}
+            transition={modalOverlay.transition}
+          >
+            {/* Karartma + bulanıklaştırma */}
+            <button
+              aria-label="Kapat"
+              onClick={() => setAcikAy(null)}
+              className="absolute inset-0 cursor-default bg-black/60 backdrop-blur-md"
+            />
+            <motion.section
+              role="dialog"
+              aria-modal="true"
+              aria-label={`${secili.year} ${monthName(secili.month - 1)} maç tablosu`}
+              className="modal-panel panel relative z-10 flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden"
+              initial={modalPanel.initial}
+              animate={modalPanel.animate}
+              exit={modalPanel.exit}
+              transition={modalPanel.transition}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] p-5">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--green)]">AYLIK MAÇ TABLOSU</div>
+                  <h2 className="mt-1 text-2xl font-bold">{secili.year} {monthName(secili.month - 1)}</h2>
+                  <p className="text-xs text-[var(--muted)]">{secili.count} maç · Aylık toplam {tl(secili.total)}</p>
+                </div>
+                <div className="no-print flex items-center gap-2">
+                  <button onClick={yazdir} className="btn-ghost flex items-center gap-2 text-xs"><Printer size={16} /> PDF olarak kaydet</button>
+                  <button onClick={exportExcel} className="btn-ghost flex items-center gap-2 text-xs"><FileSpreadsheet size={16} /> Excel indir</button>
+                  <button onClick={() => setAcikAy(null)} aria-label="Kapat" className="rounded-lg border border-[var(--border-2)] p-2 hover:border-[var(--muted-2)]"><X size={16} /></button>
+                </div>
+              </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="text-left text-[10px] uppercase tracking-wide text-[var(--muted)]">
-                <tr><th className="px-5 py-3">Tarih</th><th className="px-5 py-3">Maç türü</th><th className="px-5 py-3">Görev</th><th className="px-5 py-3">Maç ücreti</th><th className="px-5 py-3">Yol</th><th className="px-5 py-3">Harcırah</th><th className="px-5 py-3">Toplam</th><th className="px-5 py-3 no-print">İşlem</th></tr>
-              </thead>
-              <tbody>
-                {secili.matches.map((m) => (
-                  <tr key={m.id} className="border-t border-[var(--border)] align-middle">
-                    <td className="px-5 py-3 font-semibold">{new Date(m.match_date + 'T00:00:00').toLocaleDateString('tr-TR')}</td>
-                    <td className="px-5 py-3">{m.category_label}</td>
-                    <td className="px-5 py-3"><span className="rounded-full border border-[var(--green)] bg-[var(--green-soft)] px-2 py-0.5 text-[10px] font-bold uppercase text-[var(--green)]">{ROLE_LABELS[m.role]}</span></td>
-                    <td className="px-5 py-3">{tl(m.match_fee)}</td>
-                    <td className="px-5 py-3">{tl(m.travel_fee)}</td>
-                    <td className="px-5 py-3">{tl(m.harcirah)}</td>
-                    <td className="px-5 py-3 font-semibold">{tl(m.total)}</td>
-                    <td className="no-print px-5 py-3">
-                      <div className="flex gap-2">
-                        <button onClick={() => navigate('/mac-ekle?id=' + m.id)} className="flex items-center gap-1 rounded-lg border border-[var(--border-2)] px-2 py-1 text-xs text-[var(--blue)] hover:border-[var(--blue)]"><Pencil size={12} /> Düzenle</button>
-                        {silmeOnayId === m.id ? (
-                          <button onClick={() => onDelete(m.id)} disabled={siliniyorId === m.id} className="flex items-center gap-1 rounded-lg border border-[var(--red)] bg-[color:rgba(255,107,94,0.12)] px-2 py-1 text-xs text-[var(--red)]">{siliniyorId === m.id ? 'Siliniyor…' : 'Onayla'}</button>
-                        ) : (
-                          <button onClick={() => setSilmeOnayId(m.id)} className="flex items-center gap-1 rounded-lg border border-[var(--red)] px-2 py-1 text-xs text-[var(--red)] hover:bg-[color:rgba(255,107,94,0.1)]"><Trash2 size={12} /> Sil</button>
-                        )}
-                        {silmeOnayId === m.id && <button onClick={() => setSilmeOnayId(null)} className="rounded-lg px-2 py-1 text-xs text-[var(--muted)]">Vazgeç</button>}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-[var(--border-2)] bg-[color:rgba(255,107,94,0.05)] font-bold text-[var(--red)]">
-                  <td className="px-5 py-3 uppercase text-xs" colSpan={3}>AYLIK TOPLAM</td>
-                  <td className="px-5 py-3">{tl(secili.matches.reduce((a, m) => a + m.match_fee, 0))}</td>
-                  <td className="px-5 py-3">{tl(secili.matches.reduce((a, m) => a + m.travel_fee, 0))}</td>
-                  <td className="px-5 py-3">{tl(secili.matches.reduce((a, m) => a + m.harcirah, 0))}</td>
-                  <td className="px-5 py-3">{tl(secili.total)}</td>
-                  <td className="no-print px-5 py-3" />
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-          <p className="no-print border-t border-[var(--border)] p-4 text-[11px] text-[var(--muted-2)]">PDF için açıları yazdırma penceresinde “PDF olarak kaydet” seçeneğini kullanın.</p>
-        </section>
-      )}
+              <div className="overflow-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 z-[1] text-left text-[10px] uppercase tracking-wide text-[var(--muted)]">
+                    <tr className="bg-[var(--panel)]"><th className="px-5 py-3">Tarih</th><th className="px-5 py-3">Maç türü</th><th className="px-5 py-3">Görev</th><th className="px-5 py-3">Maç ücreti</th><th className="px-5 py-3">Yol</th><th className="px-5 py-3">Harcırah</th><th className="px-5 py-3">Toplam</th><th className="px-5 py-3 no-print">İşlem</th></tr>
+                  </thead>
+                  <tbody>
+                    {secili.matches.map((m) => (
+                      <tr key={m.id} className="border-t border-[var(--border)] align-middle">
+                        <td className="px-5 py-3 font-semibold">{new Date(m.match_date + 'T00:00:00').toLocaleDateString('tr-TR')}</td>
+                        <td className="px-5 py-3">{m.category_label}</td>
+                        <td className="px-5 py-3"><span className="rounded-full border border-[var(--green)] bg-[var(--green-soft)] px-2 py-0.5 text-[10px] font-bold uppercase text-[var(--green)]">{ROLE_LABELS[m.role]}</span></td>
+                        <td className="px-5 py-3">{tl(m.match_fee)}</td>
+                        <td className="px-5 py-3">{tl(m.travel_fee)}</td>
+                        <td className="px-5 py-3">{tl(m.harcirah)}</td>
+                        <td className="px-5 py-3 font-semibold">{tl(m.total)}</td>
+                        <td className="no-print px-5 py-3">
+                          <div className="flex gap-2">
+                            <button onClick={() => navigate('/mac-ekle?id=' + m.id)} className="flex items-center gap-1 rounded-lg border border-[var(--border-2)] px-2 py-1 text-xs text-[var(--blue)] hover:border-[var(--blue)]"><Pencil size={12} /> Düzenle</button>
+                            {silmeOnayId === m.id ? (
+                              <button onClick={() => onDelete(m.id)} disabled={siliniyorId === m.id} className="flex items-center gap-1 rounded-lg border border-[var(--red)] bg-[color:rgba(255,107,94,0.12)] px-2 py-1 text-xs text-[var(--red)]">{siliniyorId === m.id ? 'Siliniyor…' : 'Onayla'}</button>
+                            ) : (
+                              <button onClick={() => setSilmeOnayId(m.id)} className="flex items-center gap-1 rounded-lg border border-[var(--red)] px-2 py-1 text-xs text-[var(--red)] hover:bg-[color:rgba(255,107,94,0.1)]"><Trash2 size={12} /> Sil</button>
+                            )}
+                            {silmeOnayId === m.id && <button onClick={() => setSilmeOnayId(null)} className="rounded-lg px-2 py-1 text-xs text-[var(--muted)]">Vazgeç</button>}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-[var(--border-2)] bg-[color:rgba(255,107,94,0.05)] font-bold text-[var(--red)]">
+                      <td className="px-5 py-3 uppercase text-xs" colSpan={3}>AYLIK TOPLAM</td>
+                      <td className="px-5 py-3">{tl(secili.matches.reduce((a, m) => a + m.match_fee, 0))}</td>
+                      <td className="px-5 py-3">{tl(secili.matches.reduce((a, m) => a + m.travel_fee, 0))}</td>
+                      <td className="px-5 py-3">{tl(secili.matches.reduce((a, m) => a + m.harcirah, 0))}</td>
+                      <td className="px-5 py-3">{tl(secili.total)}</td>
+                      <td className="no-print px-5 py-3" />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              <p className="no-print border-t border-[var(--border)] p-4 text-[11px] text-[var(--muted-2)]">PDF için açıları yazdırma penceresinde “PDF olarak kaydet” seçeneğini kullanın.</p>
+            </motion.section>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

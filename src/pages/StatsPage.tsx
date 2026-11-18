@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { categoricalFor } from '../lib/chartColors';
 import { readMatches } from '../lib/matches';
 import { monthName, tl } from '../lib/format';
 import type { MatchRow } from '../lib/types';
-
-const COLORS = ['#2bd97b', '#3ea7ff', '#e0a943', '#ff6b5e', '#a78bfa', '#34d399', '#f472b6', '#60a5fa'];
 
 const KazanclarChart = lazy(() => import('../components/KazanclarChart'));
 const KategoriChart = lazy(() => import('../components/KategoriChart'));
@@ -13,6 +13,8 @@ const KategoriChart = lazy(() => import('../components/KategoriChart'));
 export default function StatsPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
+  const { tema } = useTheme();
+  const COLORS = categoricalFor(tema);
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [hata, setHata] = useState<string | null>(null);

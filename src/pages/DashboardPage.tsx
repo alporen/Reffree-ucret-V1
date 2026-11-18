@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { AlertCircle, CalendarDays, CircleDollarSign, Trophy } from 'lucide-react';
 import { readMatches } from '../lib/matches';
 import { useAuth } from '../context/AuthContext';
 import { monthName, tl } from '../lib/format';
 import { ROLE_LABELS } from '../lib/rates';
+import { DUR } from '../lib/motion';
 
 export default function DashboardPage() {
   const { profile, configError } = useAuth();
@@ -44,7 +46,6 @@ export default function DashboardPage() {
         <div>
           <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--green)]">GENEL BAKIŞ</div>
           <h1 className="mt-1 text-2xl font-bold">Ana Sayfa</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">Hakem ücretlerinizi ve maçlarınızı takip edin.</p>
         </div>
         <div className="chip">
           <span>Genel toplam kazanç</span>
@@ -63,35 +64,36 @@ export default function DashboardPage() {
       )}
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        <div className="panel flex items-center gap-4 p-5">
-          <div className="rounded-xl border border-[var(--blue)] p-3 text-[var(--blue)]"><CalendarDays size={22} /></div>
-          <div>
-            <div className="text-xs text-[var(--muted)]">Bu ay yapılan maç</div>
-            <div className="text-2xl font-bold">{loading ? '…' : stats.buAy.length} <span className="text-base font-medium text-[var(--muted)]">maç</span></div>
-            <div className="text-[11px] text-[var(--muted-2)]">{monthName(stats.now.getMonth())} {stats.now.getFullYear()}</div>
-          </div>
-        </div>
-
-        <div className="panel flex items-center gap-4 p-5">
-          <div className="rounded-xl border border-[var(--green)] p-3 text-[var(--green)]"><CircleDollarSign size={22} /></div>
-          <div>
-            <div className="text-xs text-[var(--muted)]">Ortalama maç başı kazanç</div>
-            <div className="text-2xl font-bold">{loading ? '…' : tl(stats.ort)}</div>
-            <div className="text-[11px] text-[var(--muted-2)]">Girilen tüm maçların ortalaması</div>
-          </div>
-        </div>
-
-        <div className="panel flex items-center gap-4 p-5">
-          <div className="rounded-xl border border-[var(--gold)] p-3 text-[var(--gold)]"><Trophy size={22} /></div>
-          <div>
-            <div className="text-xs text-[var(--muted)]">En sık çıktığınız tür</div>
-            <div className="text-2xl font-bold">{loading ? '…' : stats.enSikAdi}</div>
-            <div className="text-[11px] text-[var(--muted-2)]">{stats.yuzde}% · {stats.enSikAdet} maç</div>
-          </div>
-        </div>
+        {[
+          { icon: CalendarDays, label: 'Bu ay yapılan maç', value: `${loading ? '…' : stats.buAy.length} maç`, sub: `${monthName(stats.now.getMonth())} ${stats.now.getFullYear()}`, color: 'var(--blue)' },
+          { icon: CircleDollarSign, label: 'Ortalama maç başı kazanç', value: loading ? '…' : tl(stats.ort), sub: 'Girilen tüm maçların ortalaması', color: 'var(--green)' },
+          { icon: Trophy, label: 'En sık çıktığınız tür', value: loading ? '…' : stats.enSikAdi, sub: matches.length ? `${stats.yuzde}% · ${stats.enSikAdet} maç` : 'Henüz maç yok', color: 'var(--gold)' },
+        ].map((c, i) => (
+          <motion.div
+            key={c.label}
+            className="panel flex items-center gap-4 p-5"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: DUR, delay: i * 0.08, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <div className="rounded-xl border p-3" style={{ color: c.color, borderColor: c.color }}>
+              <c.icon size={22} />
+            </div>
+            <div>
+              <div className="text-xs text-[var(--muted)]">{c.label}</div>
+              <div className="text-2xl font-bold">{c.value}</div>
+              <div className="text-[11px] text-[var(--muted-2)]">{c.sub}</div>
+            </div>
+          </motion.div>
+        ))}
       </div>
 
-      <section className="panel mt-6 overflow-hidden">
+      <motion.section
+        className="panel mt-6 overflow-hidden"
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: DUR, delay: 0.24, ease: [0.22, 1, 0.36, 1] }}
+      >
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] p-5">
           <div>
             <h2 className="font-semibold">En çok çıktığınız kategoride maçlar</h2>
@@ -106,7 +108,7 @@ export default function DashboardPage() {
           <div className="p-8 text-center text-sm text-[var(--muted)]">Yükleniyor…</div>
         ) : stats.topMatches.length === 0 ? (
           <div className="p-10 text-center">
-            <p className="text-sm text-[var(--muted)]">Henüz maç eklemediniz.</p>
+            <p className="text-sm text-[var(--muted)]">Henüz maç eklenmediniz.</p>
             <Link to="/mac-ekle" className="btn-primary mt-4 inline-flex">İlk maçı ekleyin</Link>
           </div>
         ) : (
@@ -125,7 +127,7 @@ export default function DashboardPage() {
             </tbody>
           </table>
         )}
-      </section>
+      </motion.section>
 
       {profile?.username && <div className="no-print mt-4 text-right text-xs text-[var(--muted-2)]">@{profile.username}</div>}
     </div>
